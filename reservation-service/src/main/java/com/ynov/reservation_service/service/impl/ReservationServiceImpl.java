@@ -6,6 +6,10 @@ import com.ynov.reservation_service.dto.ReservationResponse;
 import com.ynov.reservation_service.entity.Reservation;
 import com.ynov.reservation_service.entity.ReservationStatus;
 import com.ynov.reservation_service.kafka.ReservationEventProducer;
+import com.ynov.reservation_service.pattern.CancelledState;
+import com.ynov.reservation_service.pattern.CompletedState;
+import com.ynov.reservation_service.pattern.ConfirmedState;
+import com.ynov.reservation_service.pattern.ReservationState;
 import com.ynov.reservation_service.repository.ReservationRepository;
 import com.ynov.reservation_service.rest.MemberClient;
 import com.ynov.reservation_service.rest.RoomClient;
@@ -31,17 +35,14 @@ public class ReservationServiceImpl implements ReservationService {
             throw new RuntimeException("Room is not available");
         }
 
-
         if (reservationRepository.existsOverlappingReservation(
                 request.getRoomId(), request.getStartDateTime(), request.getEndDateTime())) {
             throw new RuntimeException("Room already booked on this time slot");
         }
 
-
         if (memberClient.isMemberSuspended(request.getMemberId())) {
             throw new RuntimeException("Member is suspended");
         }
-
 
         Reservation reservation = Reservation.builder()
                 .roomId(request.getRoomId())
@@ -51,7 +52,6 @@ public class ReservationServiceImpl implements ReservationService {
                 .status(ReservationStatus.CONFIRMED)
                 .build();
         reservation = reservationRepository.save(reservation);
-
 
         roomClient.setRoomAvailability(request.getRoomId(), false);
 
@@ -69,30 +69,39 @@ public class ReservationServiceImpl implements ReservationService {
     @Override
     public ReservationResponse cancelReservation(Long id) {
         Reservation reservation = findById(id);
-        if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
-            throw new RuntimeException("Only CONFIRMED reservations can be cancelled");
-        }
+
+        // State Pattern — vérifie la transition via l'état courant
+        ReservationState state = resolveState(reservation.getStatus());
+        state.cancel(); // lève une exception si transition invalide
+
+        // if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
+        //     throw new RuntimeException("Only CONFIRMED reservations can be cancelled");
+        // }
+
         reservation.setStatus(ReservationStatus.CANCELLED);
         reservationRepository.save(reservation);
-
         roomClient.setRoomAvailability(reservation.getRoomId(), true);
         checkAndUnsuspendMember(reservation.getMemberId());
-
         return toResponse(reservation);
     }
 
     @Override
     public ReservationResponse completeReservation(Long id) {
         Reservation reservation = findById(id);
-        if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
-            throw new RuntimeException("Only CONFIRMED reservations can be completed");
-        }
+
+        // State Pattern — vérifie la transition via l'état courant
+        ReservationState state = resolveState(reservation.getStatus());
+        state.complete(); // lève une exception si transition invalide
+
+
+        // if (reservation.getStatus() != ReservationStatus.CONFIRMED) {
+        //     throw new RuntimeException("Only CONFIRMED reservations can be completed");
+        // }
+
         reservation.setStatus(ReservationStatus.COMPLETED);
         reservationRepository.save(reservation);
-
         roomClient.setRoomAvailability(reservation.getRoomId(), true);
         checkAndUnsuspendMember(reservation.getMemberId());
-
         return toResponse(reservation);
     }
 
@@ -106,6 +115,15 @@ public class ReservationServiceImpl implements ReservationService {
         return reservationRepository.findAll()
                 .stream().map(this::toResponse)
                 .collect(Collectors.toList());
+    }
+
+    // Helper pour résoudre l'état courant — State Pattern
+    private ReservationState resolveState(ReservationStatus status) {
+        return switch (status) {
+            case CONFIRMED -> new ConfirmedState();
+            case CANCELLED -> new CancelledState();
+            case COMPLETED -> new CompletedState();
+        };
     }
 
     private void checkAndUnsuspendMember(Long memberId) {
