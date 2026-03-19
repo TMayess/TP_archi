@@ -4,6 +4,7 @@ package com.ynov.room_service.service.impl;
 import com.ynov.room_service.dto.RoomRequest;
 import com.ynov.room_service.dto.RoomResponse;
 import com.ynov.room_service.entity.Room;
+import com.ynov.room_service.kafka.RoomEventProducer;
 import com.ynov.room_service.repository.RoomRepository;
 import com.ynov.room_service.service.RoomService;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 public class RoomServiceImpl implements RoomService {
 
     private final RoomRepository roomRepository;
+    private final RoomEventProducer roomEventProducer;
 
     @Override
     public RoomResponse createRoom(RoomRequest request) {
@@ -72,7 +74,9 @@ public class RoomServiceImpl implements RoomService {
 
     @Override
     public void deleteRoom(Long id) {
-        roomRepository.delete(findById(id));
+        Room room = findById(id);
+        roomEventProducer.sendRoomDeletedEvent(id);
+        roomRepository.delete(room);
     }
 
     @Override
