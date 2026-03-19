@@ -5,6 +5,7 @@ import com.ynov.member_service.dto.MemberRequest;
 import com.ynov.member_service.dto.MemberResponse;
 import com.ynov.member_service.entity.Member;
 import com.ynov.member_service.entity.SubscriptionType;
+import com.ynov.member_service.kafka.MemberEventProducer;
 import com.ynov.member_service.repository.MemberRepository;
 import com.ynov.member_service.service.MemberService;
 import lombok.RequiredArgsConstructor;
@@ -17,6 +18,7 @@ import java.util.stream.Collectors;
 public class MemberServiceImpl implements MemberService {
 
     private final MemberRepository memberRepository;
+    private final MemberEventProducer memberEventProducer;
 
     @Override
     public MemberResponse createMember(MemberRequest request) {
@@ -54,7 +56,9 @@ public class MemberServiceImpl implements MemberService {
 
     @Override
     public void deleteMember(Long id) {
-        memberRepository.delete(findById(id));
+        Member member = findById(id);
+        memberEventProducer.sendMemberDeletedEvent(id);
+        memberRepository.delete(member);
     }
 
     @Override
