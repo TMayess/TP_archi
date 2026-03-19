@@ -10,7 +10,7 @@ import org.springframework.web.client.RestTemplate;
 public class MemberClient {
 
     private final RestTemplate restTemplate;
-    private static final String MEMBER_SERVICE_URL = "http://localhost:8082/members";
+    private static final String MEMBER_SERVICE_URL = "http://member-service/members";
 
     public boolean isMemberSuspended(Long memberId) {
         try {
