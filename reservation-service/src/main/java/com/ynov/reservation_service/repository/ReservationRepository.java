@@ -15,7 +15,7 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
 
     List<Reservation> findByRoomIdAndStatus(Long roomId, ReservationStatus status);
 
-    // Vérifie si une salle est déjà réservée sur un créneau
+    List<Reservation> findByMemberId(Long memberId);
     @Query("SELECT COUNT(r) > 0 FROM Reservation r WHERE r.roomId = :roomId " +
             "AND r.status = 'CONFIRMED' " +
             "AND r.startDateTime < :endDateTime " +
